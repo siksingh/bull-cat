@@ -400,12 +400,47 @@
             font-size: 14px;
         }
 
-        .confetti {
-            position: fixed;
-            width: 8px;
-            height: 8px;
-            background: #667eea;
-            animation: confetti-fall 3s linear infinite;
+        .timer-display {
+            background: linear-gradient(135deg, #ff6b6b, #feca57);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            margin: 10px 0;
+            text-align: center;
+            min-width: 100px;
+            display: inline-block;
+            animation: pulse 1s ease-in-out infinite alternate;
+        }
+
+        .timer-display.warning {
+            background: linear-gradient(135deg, #ff4757, #ff3838);
+            animation: urgent-pulse 0.5s ease-in-out infinite alternate;
+        }
+
+        .timer-display.hidden {
+            display: none;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            100% {
+                transform: scale(1.02);
+            }
+        }
+
+        @keyframes urgent-pulse {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 5px rgba(255, 71, 87, 0.5);
+            }
+            100% {
+                transform: scale(1.05);
+                box-shadow: 0 0 20px rgba(255, 71, 87, 0.8);
+            }
         }
 
         @keyframes slideIn {
@@ -508,11 +543,23 @@
                     <h2 style="margin-bottom: 30px; color: #333;">Join Game Room</h2>
                     
                     <div id="createSection">
+                        <div style="margin-bottom: 20px;">
+                            <label for="timerSelect" style="display: block; margin-bottom: 10px; color: #333; font-weight: 500;">Turn Timer (seconds):</label>
+                            <select id="timerSelect" style="padding: 8px 12px; border: 2px solid #e1e8ed; border-radius: 8px; background: #f8fafc; font-size: 14px;">
+                                <option value="0">No Timer</option>
+                                <option value="30">30 seconds</option>
+                                <option value="45">45 seconds</option>
+                                <option value="60" selected>60 seconds</option>
+                                <option value="90">90 seconds</option>
+                                <option value="120">2 minutes</option>
+                            </select>
+                        </div>
                         <button class="btn btn-success" id="createRoomBtn">Create Room</button>
                         <div id="roomDisplay" class="hidden">
                             <div class="success-message">
                                 <strong>Room Created!</strong><br>
-                                Share this PIN with your friend: <span id="roomPin" style="font-size: 20px; font-weight: bold;"></span>
+                                Share this PIN with your friend: <span id="roomPin" style="font-size: 20px; font-weight: bold;"></span><br>
+                                <small>Timer: <span id="roomTimer">60</span> seconds per turn</small>
                             </div>
                         </div>
                     </div>
@@ -549,6 +596,7 @@
                         <!-- Setup Phase -->
                         <div class="setup-content" id="yourSetup">
                             <div class="secret-display">Enter Secret Number</div>
+                            <div class="timer-display hidden" id="yourSetupTimer">60</div>
                             <div class="input-group">
                                 <input type="text" class="digit-input" maxlength="1" id="yourSecret0">
                                 <input type="text" class="digit-input" maxlength="1" id="yourSecret1">
@@ -566,6 +614,7 @@
                         <!-- Guessing Phase -->
                         <div class="guess-content hidden" id="yourGuessing">
                             <div class="secret-display" id="yourSecretDisplay">* * * *</div>
+                            <div class="timer-display hidden" id="yourGuessTimer">60</div>
                             <div class="input-group" id="yourGuessInputs">
                                 <input type="text" class="digit-input" maxlength="1" id="yourGuess0" disabled>
                                 <input type="text" class="digit-input" maxlength="1" id="yourGuess1" disabled>
@@ -634,6 +683,11 @@
                 this.gameReady = false;
                 this.bothSecretsSet = false;
                 
+                // Timer functionality
+                this.timerSeconds = 60; // Default 60 seconds
+                this.currentTimer = null;
+                this.timerInterval = null;
+                
                 this.initializeEventListeners();
                 this.setupInputHandlers();
             }
@@ -682,6 +736,7 @@
                 try {
                     this.roomId = this.generateRoomId();
                     this.isHost = true;
+                    this.timerSeconds = parseInt(document.getElementById('timerSelect').value);
                     
                     // Initialize PeerJS with the default public server
                     this.peer = new Peer(this.roomId);
@@ -690,6 +745,7 @@
                         console.log('Room created with ID:', id);
                         this.updateStatus('Room created: ' + id, 'Waiting for opponent...');
                         document.getElementById('roomPin').textContent = id;
+                        document.getElementById('roomTimer').textContent = this.timerSeconds === 0 ? 'No Timer' : this.timerSeconds;
                         document.getElementById('roomDisplay').classList.remove('hidden');
                         document.getElementById('createRoomBtn').disabled = true;
                     });
@@ -783,6 +839,11 @@
                 document.getElementById('connectionSection').classList.add('hidden');
                 document.getElementById('gameSection').classList.remove('hidden');
                 
+                // Send timer settings to opponent if host
+                if (this.isHost) {
+                    this.sendMessage('timer_settings', { timerSeconds: this.timerSeconds });
+                }
+                
                 this.startSetupPhase();
             }
 
@@ -796,6 +857,11 @@
                 this.gamePhase = 'setup';
                 document.getElementById('gameGrid').className = 'game-grid phase-setup';
                 document.getElementById('yourSecret0').focus();
+                
+                // Start setup timer if enabled
+                if (this.timerSeconds > 0) {
+                    this.startTimer('setup');
+                }
             }
 
             sendMessage(type, data) {
@@ -806,6 +872,11 @@
 
             handleMessage(message) {
                 switch (message.type) {
+                    case 'timer_settings':
+                        this.timerSeconds = message.timerSeconds;
+                        this.updateStatus('Connected to room: ' + this.roomId, 
+                                        `Timer: ${this.timerSeconds === 0 ? 'No timer' : this.timerSeconds + 's per turn'}`);
+                        break;
                     case 'secret_set':
                         this.onOpponentSecretSet();
                         break;
@@ -820,6 +891,9 @@
                         break;
                     case 'new_round':
                         this.startNewRoundLocal();
+                        break;
+                    case 'turn_timeout':
+                        this.handleTurnTimeout();
                         break;
                 }
             }
@@ -916,6 +990,8 @@
             }
 
             setYourSecret() {
+                this.stopTimer(); // Stop setup timer
+                
                 this.yourSecret = '';
                 for (let i = 0; i < 4; i++) {
                     this.yourSecret += document.getElementById(`yourSecret${i}`).value;
@@ -989,6 +1065,11 @@
                     input.value = '';
                 }
                 document.getElementById('yourGuess0').focus();
+                
+                // Start guess timer if enabled
+                if (this.timerSeconds > 0 && this.yourTurn) {
+                    this.startTimer('guess');
+                }
             }
 
             disableGuessInputs() {
@@ -999,6 +1080,8 @@
 
             submitGuess() {
                 if (!this.yourTurn) return;
+                
+                this.stopTimer(); // Stop guess timer
                 
                 let guess = '';
                 for (let i = 0; i < 4; i++) {
@@ -1251,6 +1334,104 @@
                 this.bothSecretsSet = false;
                 
                 this.updateStatus('Disconnected', 'Click Create or Join to start');
+            }
+
+            // Timer functionality methods
+            startTimer(phase) {
+                this.stopTimer(); // Clear any existing timer
+                
+                if (this.timerSeconds === 0) return; // No timer set
+                
+                this.currentTimer = this.timerSeconds;
+                const timerDisplay = phase === 'setup' ? 
+                    document.getElementById('yourSetupTimer') : 
+                    document.getElementById('yourGuessTimer');
+                
+                timerDisplay.classList.remove('hidden', 'warning');
+                timerDisplay.textContent = this.currentTimer;
+                
+                this.timerInterval = setInterval(() => {
+                    this.currentTimer--;
+                    timerDisplay.textContent = this.currentTimer;
+                    
+                    // Add warning style when time is running out
+                    if (this.currentTimer <= 10) {
+                        timerDisplay.classList.add('warning');
+                    }
+                    
+                    // Time's up!
+                    if (this.currentTimer <= 0) {
+                        this.stopTimer();
+                        this.handleTimeOut(phase);
+                    }
+                }, 1000);
+            }
+
+            stopTimer() {
+                if (this.timerInterval) {
+                    clearInterval(this.timerInterval);
+                    this.timerInterval = null;
+                }
+                
+                // Hide all timer displays
+                document.getElementById('yourSetupTimer').classList.add('hidden');
+                document.getElementById('yourGuessTimer').classList.add('hidden');
+            }
+
+            handleTimeOut(phase) {
+                if (phase === 'setup') {
+                    // Auto-set a random secret if user didn't complete setup
+                    this.autoSetRandomSecret();
+                } else if (phase === 'guess' && this.yourTurn) {
+                    // Skip turn if user didn't make a guess in time
+                    this.skipTurn();
+                }
+            }
+
+            autoSetRandomSecret() {
+                // Generate random 4-digit secret
+                let secret = '';
+                const usedDigits = [];
+                
+                for (let i = 0; i < 4; i++) {
+                    let digit;
+                    do {
+                        digit = Math.floor(Math.random() * 10).toString();
+                    } while (!this.yourAllowRepeats && usedDigits.includes(digit));
+                    
+                    secret += digit;
+                    usedDigits.push(digit);
+                    document.getElementById(`yourSecret${i}`).value = digit;
+                }
+                
+                this.yourSecret = secret;
+                this.setYourSecret();
+                
+                this.showError('Time up! Random secret number was set automatically.');
+            }
+
+            skipTurn() {
+                this.disableGuessInputs();
+                this.yourTurn = false;
+                this.updateTurnIndicators();
+                
+                // Clear guess inputs
+                for (let i = 0; i < 4; i++) {
+                    document.getElementById(`yourGuess${i}`).value = '';
+                }
+                
+                // Notify opponent that turn was skipped
+                this.sendMessage('turn_timeout', {});
+                this.showError('Time up! Your turn was skipped.');
+            }
+
+            handleTurnTimeout() {
+                // Opponent's turn timed out, now it's your turn
+                if (this.gamePhase === 'guessing') {
+                    this.yourTurn = true;
+                    this.updateTurnIndicators();
+                    this.enableGuessInputs();
+                }
             }
         }
 

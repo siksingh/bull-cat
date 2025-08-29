@@ -1025,7 +1025,7 @@
                 
                 // Check if opponent won
                 if (feedback.correctPositions === 4) {
-                    this.sendMessage('game_won', {});
+                    // Opponent guessed your secret correctly - they win, you lose
                     this.showGameResult(false); // You lost
                     return;
                 }

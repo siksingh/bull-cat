@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Number Guessing Game</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.0/peerjs.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            min-height: 80vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .connection-status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin: 5px;
+            display: inline-block;
+        }
+
+        .game-status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .content {
+            padding: 30px;
+        }
+
+        .game-section {
+            margin-bottom: 30px;
+        }
+
+        /* Connection Screen */
+        .connection-screen {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .room-input {
+            width: 200px;
+            height: 60px;
+            border: 2px solid #e1e8ed;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 10px;
+            background: #f8fafc;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .room-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        /* Two column layout for game */
+        .game-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .player-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            border: 2px solid #e1e8ed;
+            transition: all 0.3s ease;
+        }
+
+        .player-section.active {
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.1);
+        }
+
+        .player-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .digit-input {
+            width: 50px;
+            height: 50px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            background: #f8fafc;
+        }
+
+        .digit-input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .digit-input:disabled {
+            background: #e9ecef;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+            font-size: 14px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: #ccc;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+
+        .toggle.active {
+            background: #667eea;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            border-radius: 50%;
+            background: white;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .toggle.active::after {
+            transform: translateX(25px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: block;
+            margin: 15px auto;
+            min-width: 150px;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #fd7e14 100%);
+        }
+
+        .secret-display {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .history {
+            margin-top: 20px;
+        }
+
+        .history h4 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .history-item {
+            background: white;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        .guess-display {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .feedback {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            font-size: 11px;
+        }
+
+        .feedback-item {
+            background: #f8fafc;
+            padding: 3px 8px;
+            border-radius: 10px;
+            border-left: 2px solid;
+        }
+
+        .feedback-correct {
+            border-left-color: #28a745;
+            color: #28a745;
+        }
+
+        .feedback-position {
+            border-left-color: #007bff;
+            color: #007bff;
+        }
+
+        .turn-indicator {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 8px 15px;
+            border-radius: 15px;
+            font-size: 14px;
+            font-weight: 500;
+            margin: 10px 0;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .turn-indicator.your-turn {
+            background: rgba(40, 167, 69, 0.2);
+            color: #28a745;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+
+        .win-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .win-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .win-content {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            transform: scale(0.8);
+            transition: transform 0.3s ease;
+        }
+
+        .win-overlay.show .win-content {
+            transform: scale(1);
+        }
+
+        .win-title {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 20px;
+            animation: bounce 0.6s ease;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .phase-setup .player-section:not(.setup-phase) {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .phase-guessing .setup-content {
+            display: none;
+        }
+
+        .error-message {
+            background: #ffe6e6;
+            color: #d8000c;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #d8000c;
+            font-size: 14px;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #28a745;
+            font-size: 14px;
+        }
+
+        .confetti {
+            position: fixed;
+            width: 8px;
+            height: 8px;
+            background: #667eea;
+            animation: confetti-fall 3s linear infinite;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(-100vh) rotateZ(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotateZ(720deg);
+                opacity: 0;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+            
+            .container {
+                margin: 0;
+                border-radius: 0;
+                min-height: 100vh;
+            }
+
+            .game-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .digit-input {
+                width: 45px;
+                height: 45px;
+                font-size: 18px;
+            }
+
+            .header {
+                padding: 20px 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+
+            .room-input {
+                width: 150px;
+                height: 50px;
+                font-size: 20px;
+            }
+
+            .player-section {
+                padding: 20px 15px;
+            }
+
+            .win-content {
+                margin: 0 20px;
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>WebRTC Number Guessing Game</h1>
+            <div class="connection-status" id="connectionStatus">Disconnected</div>
+            <div class="game-status" id="gameStatus">Click Create or Join to start</div>
+        </div>
+
+        <div class="content">
+            <!-- Connection Screen -->
+            <div class="game-section" id="connectionSection">
+                <div class="connection-screen">
+                    <h2 style="margin-bottom: 30px; color: #333;">Join Game Room</h2>
+                    
+                    <div id="createSection">
+                        <button class="btn btn-success" id="createRoomBtn">Create Room</button>
+                        <div id="roomDisplay" class="hidden">
+                            <div class="success-message">
+                                <strong>Room Created!</strong><br>
+                                Share this PIN with your friend: <span id="roomPin" style="font-size: 20px; font-weight: bold;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin: 20px 0; color: #666;">- OR -</div>
+                    
+                    <div>
+                        <input type="text" 
+                               class="room-input" 
+                               id="roomInput" 
+                               placeholder="Enter PIN" 
+                               maxlength="4">
+                        <div style="margin: 20px 0;">
+                            <button class="btn" id="joinRoomBtn">Join Room</button>
+                        </div>
+                    </div>
+                    
+                    <div id="errorMessage" class="error-message hidden"></div>
+                    
+                    <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                        Create a room to get a PIN, or enter an existing PIN to join.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Game Screen -->
+            <div class="game-section hidden" id="gameSection">
+                <div class="game-grid" id="gameGrid">
+                    <!-- Your Game -->
+                    <div class="player-section setup-phase" id="yourSection">
+                        <div class="player-title">You</div>
+                        <div class="turn-indicator" id="yourTurnIndicator">Set your secret number</div>
+                        
+                        <!-- Setup Phase -->
+                        <div class="setup-content" id="yourSetup">
+                            <div class="secret-display">Enter Secret Number</div>
+                            <div class="input-group">
+                                <input type="text" class="digit-input" maxlength="1" id="yourSecret0">
+                                <input type="text" class="digit-input" maxlength="1" id="yourSecret1">
+                                <input type="text" class="digit-input" maxlength="1" id="yourSecret2">
+                                <input type="text" class="digit-input" maxlength="1" id="yourSecret3">
+                            </div>
+                            <div class="toggle-container">
+                                <span>Allow repeats:</span>
+                                <div class="toggle" id="yourRepeatToggle"></div>
+                                <span id="yourRepeatStatus">No</span>
+                            </div>
+                            <button class="btn" id="yourSetSecretBtn" disabled>Set Secret</button>
+                        </div>
+
+                        <!-- Guessing Phase -->
+                        <div class="guess-content hidden" id="yourGuessing">
+                            <div class="secret-display" id="yourSecretDisplay">* * * *</div>
+                            <div class="input-group" id="yourGuessInputs">
+                                <input type="text" class="digit-input" maxlength="1" id="yourGuess0" disabled>
+                                <input type="text" class="digit-input" maxlength="1" id="yourGuess1" disabled>
+                                <input type="text" class="digit-input" maxlength="1" id="yourGuess2" disabled>
+                                <input type="text" class="digit-input" maxlength="1" id="yourGuess3" disabled>
+                            </div>
+                            <div class="history">
+                                <h4>Your Guesses</h4>
+                                <div class="history-list" id="yourHistoryList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Opponent Game -->
+                    <div class="player-section setup-phase" id="opponentSection">
+                        <div class="player-title">Opponent</div>
+                        <div class="turn-indicator" id="opponentTurnIndicator">Waiting for opponent...</div>
+                        
+                        <!-- Setup Phase -->
+                        <div class="setup-content" id="opponentSetup">
+                            <div class="secret-display">Waiting for opponent...</div>
+                        </div>
+
+                        <!-- Guessing Phase -->
+                        <div class="guess-content hidden" id="opponentGuessing">
+                            <div class="secret-display" id="opponentSecretDisplay">* * * *</div>
+                            <div class="history">
+                                <h4>Opponent's Guesses</h4>
+                                <div class="history-list" id="opponentHistoryList"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <button class="btn btn-danger" id="disconnectBtn">Leave Room</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Win Overlay -->
+    <div class="win-overlay" id="winOverlay">
+        <div class="win-content">
+            <div class="win-title" id="winTitle">🎉 You Win! 🎉</div>
+            <p style="margin-bottom: 30px; color: #666;" id="winMessage">Congratulations!</p>
+            <button class="btn" onclick="startNewRound()">Play Again</button>
+            <button class="btn btn-danger" onclick="leaveRoom()">Leave Room</button>
+        </div>
+    </div>
+
+    <script>
+        class PeerJSNumberGame {
+            constructor() {
+                this.peer = null;
+                this.connection = null;
+                this.roomId = null;
+                this.isHost = false;
+                this.connected = false;
+                
+                // Game state
+                this.gamePhase = 'waiting'; // 'waiting', 'setup', 'guessing', 'finished'
+                this.yourSecret = '';
+                this.yourAllowRepeats = false;
+                this.yourTurn = false;
+                this.gameReady = false;
+                this.bothSecretsSet = false;
+                
+                this.initializeEventListeners();
+                this.setupInputHandlers();
+            }
+
+            initializeEventListeners() {
+                document.getElementById('createRoomBtn').addEventListener('click', () => this.createRoom());
+                document.getElementById('joinRoomBtn').addEventListener('click', () => this.joinRoom());
+                document.getElementById('roomInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') this.joinRoom();
+                });
+                document.getElementById('disconnectBtn').addEventListener('click', () => this.leaveRoom());
+                
+                // Your game controls
+                document.getElementById('yourRepeatToggle').addEventListener('click', () => this.toggleRepeats());
+                document.getElementById('yourSetSecretBtn').addEventListener('click', () => this.setYourSecret());
+            }
+
+            setupInputHandlers() {
+                // Your secret setup inputs
+                for (let i = 0; i < 4; i++) {
+                    const input = document.getElementById(`yourSecret${i}`);
+                    input.addEventListener('input', (e) => this.handleSecretInput(e, i));
+                    input.addEventListener('keydown', (e) => this.handleKeyNavigation(e, 'secret', i));
+                }
+
+                // Your guess inputs
+                for (let i = 0; i < 4; i++) {
+                    const input = document.getElementById(`yourGuess${i}`);
+                    input.addEventListener('input', (e) => this.handleGuessInput(e, i));
+                    input.addEventListener('keydown', (e) => this.handleKeyNavigation(e, 'guess', i));
+                }
+            }
+
+            generateRoomId() {
+                return Math.random().toString(36).substr(2, 4).toUpperCase();
+            }
+
+            showError(message) {
+                const errorEl = document.getElementById('errorMessage');
+                errorEl.textContent = message;
+                errorEl.classList.remove('hidden');
+                setTimeout(() => errorEl.classList.add('hidden'), 5000);
+            }
+
+            async createRoom() {
+                try {
+                    this.roomId = this.generateRoomId();
+                    this.isHost = true;
+                    
+                    // Initialize PeerJS
+                    this.peer = new Peer(this.roomId, {
+                        host: 'peerjs-server.herokuapp.com',
+                        port: 443,
+                        secure: true,
+                        debug: 2
+                    });
+                    
+                    this.peer.on('open', (id) => {
+                        console.log('Room created with ID:', id);
+                        this.updateStatus('Room created: ' + id, 'Waiting for opponent...');
+                        document.getElementById('roomPin').textContent = id;
+                        document.getElementById('roomDisplay').classList.remove('hidden');
+                        document.getElementById('createRoomBtn').disabled = true;
+                    });
+
+                    this.peer.on('connection', (conn) => {
+                        console.log('Someone connected:', conn.peer);
+                        this.connection = conn;
+                        this.setupConnectionEvents();
+                    });
+
+                    this.peer.on('error', (err) => {
+                        console.error('Peer error:', err);
+                        if (err.type === 'unavailable-id') {
+                            this.createRoom(); // Try with new ID
+                        } else {
+                            this.showError('Failed to create room: ' + err.message);
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('Create room error:', error);
+                    this.showError('Failed to create room');
+                }
+            }
+
+            async joinRoom() {
+                try {
+                    const roomInput = document.getElementById('roomInput');
+                    this.roomId = roomInput.value.toUpperCase().trim();
+                    
+                    if (!this.roomId || this.roomId.length !== 4) {
+                        this.showError('Please enter a valid 4-character room PIN');
+                        return;
+                    }
+                    
+                    this.isHost = false;
+                    this.updateStatus('Connecting...', 'Joining room: ' + this.roomId);
+                    
+                    // Initialize PeerJS with random ID
+                    this.peer = new Peer(null, {
+                        host: 'peerjs-server.herokuapp.com',
+                        port: 443,
+                        secure: true,
+                        debug: 2
+                    });
+                    
+                    this.peer.on('open', (id) => {
+                        console.log('My peer ID:', id);
+                        // Connect to the room
+                        this.connection = this.peer.connect(this.roomId);
+                        this.setupConnectionEvents();
+                    });
+
+                    this.peer.on('error', (err) => {
+                        console.error('Peer error:', err);
+                        if (err.type === 'peer-unavailable') {
+                            this.showError('Room not found. Please check the PIN.');
+                        } else {
+                            this.showError('Connection failed: ' + err.message);
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('Join room error:', error);
+                    this.showError('Failed to join room');
+                }
+            }
+
+            setupConnectionEvents() {
+                this.connection.on('open', () => {
+                    console.log('Connected to peer');
+                    this.onConnected();
+                });
+
+                this.connection.on('data', (data) => {
+                    console.log('Received:', data);
+                    this.handleMessage(data);
+                });
+
+                this.connection.on('close', () => {
+                    console.log('Connection closed');
+                    this.onDisconnected();
+                });
+
+                this.connection.on('error', (err) => {
+                    console.error('Connection error:', err);
+                    this.showError('Connection error');
+                });
+            }
+
+            onConnected() {
+                this.connected = true;
+                this.updateStatus('Connected to room: ' + this.roomId, 'Set your secret number');
+                
+                // Show game interface
+                document.getElementById('connectionSection').classList.add('hidden');
+                document.getElementById('gameSection').classList.remove('hidden');
+                
+                this.startSetupPhase();
+            }
+
+            onDisconnected() {
+                this.connected = false;
+                this.updateStatus('Disconnected', 'Connection lost');
+                this.showError('Connection lost with opponent');
+            }
+
+            startSetupPhase() {
+                this.gamePhase = 'setup';
+                document.getElementById('gameGrid').className = 'game-grid phase-setup';
+                document.getElementById('yourSecret0').focus();
+            }
+
+            sendMessage(type, data) {
+                if (this.connection && this.connection.open) {
+                    this.connection.send({ type, ...data });
+                }
+            }
+
+            handleMessage(message) {
+                switch (message.type) {
+                    case 'secret_set':
+                        this.onOpponentSecretSet();
+                        break;
+                    case 'guess':
+                        this.handleOpponentGuess(message.guess);
+                        break;
+                    case 'guess_result':
+                        this.handleGuessResult(message.feedback);
+                        break;
+                    case 'game_won':
+                        this.handleOpponentWin();
+                        break;
+                    case 'new_round':
+                        this.startNewRoundLocal();
+                        break;
+                }
+            }
+
+            handleSecretInput(e, index) {
+                const value = e.target.value;
+                
+                if (!/^\d$/.test(value)) {
+                    e.target.value = '';
+                    return;
+                }
+
+                // Check for repeated digits if not allowed
+                if (!this.yourAllowRepeats) {
+                    const currentInputs = [];
+                    for (let i = 0; i < 4; i++) {
+                        const inputVal = document.getElementById(`yourSecret${i}`).value;
+                        if (inputVal && i !== index) {
+                            currentInputs.push(inputVal);
+                        }
+                    }
+                    
+                    if (currentInputs.includes(value)) {
+                        e.target.value = '';
+                        this.showError('Repeated digits not allowed!');
+                        return;
+                    }
+                }
+
+                // Move to next input
+                if (value && index < 3) {
+                    document.getElementById(`yourSecret${index + 1}`).focus();
+                }
+
+                this.updateSetSecretButton();
+            }
+
+            handleGuessInput(e, index) {
+                const value = e.target.value;
+                
+                if (!/^\d$/.test(value)) {
+                    e.target.value = '';
+                    return;
+                }
+
+                // Move to next input
+                if (value && index < 3) {
+                    document.getElementById(`yourGuess${index + 1}`).focus();
+                } else if (value && index === 3) {
+                    // Auto-submit guess
+                    setTimeout(() => this.submitGuess(), 100);
+                }
+            }
+
+            handleKeyNavigation(e, type, index) {
+                if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                    document.getElementById(`${type === 'secret' ? 'yourSecret' : 'yourGuess'}${index - 1}`).focus();
+                } else if (e.key === 'Enter') {
+                    if (type === 'secret' && this.isSetupComplete()) {
+                        this.setYourSecret();
+                    }
+                }
+            }
+
+            toggleRepeats() {
+                const toggle = document.getElementById('yourRepeatToggle');
+                const status = document.getElementById('yourRepeatStatus');
+                
+                this.yourAllowRepeats = !this.yourAllowRepeats;
+                toggle.classList.toggle('active');
+                status.textContent = this.yourAllowRepeats ? 'Yes' : 'No';
+                
+                // Clear inputs if changing to no repeats
+                if (!this.yourAllowRepeats) {
+                    for (let i = 0; i < 4; i++) {
+                        document.getElementById(`yourSecret${i}`).value = '';
+                    }
+                }
+                
+                this.updateSetSecretButton();
+            }
+
+            isSetupComplete() {
+                for (let i = 0; i < 4; i++) {
+                    if (!document.getElementById(`yourSecret${i}`).value) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            updateSetSecretButton() {
+                document.getElementById('yourSetSecretBtn').disabled = !this.isSetupComplete();
+            }
+
+            setYourSecret() {
+                this.yourSecret = '';
+                for (let i = 0; i < 4; i++) {
+                    this.yourSecret += document.getElementById(`yourSecret${i}`).value;
+                }
+
+                // Hide setup, show guessing interface
+                document.getElementById('yourSetup').classList.add('hidden');
+                document.getElementById('yourGuessing').classList.remove('hidden');
+                
+                // Update turn indicator
+                document.getElementById('yourTurnIndicator').textContent = 'Secret set! Waiting for opponent...';
+                
+                // Notify opponent
+                this.sendMessage('secret_set', {});
+                
+                // Check if both secrets are set
+                this.checkBothSecretsSet();
+            }
+
+            onOpponentSecretSet() {
+                document.getElementById('opponentTurnIndicator').textContent = 'Secret set! Ready to play';
+                document.getElementById('opponentSetup').classList.add('hidden');
+                document.getElementById('opponentGuessing').classList.remove('hidden');
+                
+                this.checkBothSecretsSet();
+            }
+
+            checkBothSecretsSet() {
+                if (document.getElementById('yourGuessing').classList.contains('hidden') === false &&
+                    document.getElementById('opponentGuessing').classList.contains('hidden') === false) {
+                    
+                    this.bothSecretsSet = true;
+                    this.startGuessingPhase();
+                }
+            }
+
+            startGuessingPhase() {
+                this.gamePhase = 'guessing';
+                document.getElementById('gameGrid').className = 'game-grid phase-guessing';
+                
+                // Host goes first
+                this.yourTurn = this.isHost;
+                this.updateTurnIndicators();
+                
+                if (this.yourTurn) {
+                    this.enableGuessInputs();
+                }
+            }
+
+            updateTurnIndicators() {
+                const yourIndicator = document.getElementById('yourTurnIndicator');
+                const opponentIndicator = document.getElementById('opponentTurnIndicator');
+                
+                if (this.yourTurn) {
+                    yourIndicator.textContent = 'Your turn - Make a guess!';
+                    yourIndicator.classList.add('your-turn');
+                    opponentIndicator.textContent = 'Opponent\'s turn';
+                    opponentIndicator.classList.remove('your-turn');
+                } else {
+                    yourIndicator.textContent = 'Waiting for your turn...';
+                    yourIndicator.classList.remove('your-turn');
+                    opponentIndicator.textContent = 'Opponent is guessing...';
+                    opponentIndicator.classList.add('your-turn');
+                }
+            }
+
+            enableGuessInputs() {
+                for (let i = 0; i < 4; i++) {
+                    const input = document.getElementById(`yourGuess${i}`);
+                    input.disabled = false;
+                    input.value = '';
+                }
+                document.getElementById('yourGuess0').focus();
+            }
+
+            disableGuessInputs() {
+                for (let i = 0; i < 4; i++) {
+                    document.getElementById(`yourGuess${i}`).disabled = true;
+                }
+            }
+
+            submitGuess() {
+                if (!this.yourTurn) return;
+                
+                let guess = '';
+                for (let i = 0; i < 4; i++) {
+                    guess += document.getElementById(`yourGuess${i}`).value;
+                }
+
+                // Send guess to opponent
+                this.sendMessage('guess', { guess });
+                
+                // Disable inputs and wait for response
+                this.disableGuessInputs();
+                document.getElementById('yourTurnIndicator').textContent = 'Waiting for feedback...';
+            }
+
+            handleOpponentGuess(guess) {
+                // Calculate feedback against your secret
+                const feedback = this.calculateFeedback(guess, this.yourSecret);
+                
+                // Add to opponent's history
+                this.addToOpponentHistory(guess, feedback);
+                
+                // Send feedback back
+                this.sendMessage('guess_result', { feedback });
+                
+                // Check if opponent won
+                if (feedback.correctPositions === 4) {
+                    this.sendMessage('game_won', {});
+                    this.showGameResult(false); // You lost
+                    return;
+                }
+                
+                // Switch turns
+                this.yourTurn = true;
+                this.updateTurnIndicators();
+                this.enableGuessInputs();
+            }
+
+            handleGuessResult(feedback) {
+                // Add to your history
+                let guess = '';
+                for (let i = 0; i < 4; i++) {
+                    guess += document.getElementById(`yourGuess${i}`).value;
+                }
+                
+                this.addToYourHistory(guess, feedback);
+                
+                // Check if you won
+                if (feedback.correctPositions === 4) {
+                    this.showGameResult(true); // You won
+                    return;
+                }
+                
+                // Clear inputs and switch turns
+                for (let i = 0; i < 4; i++) {
+                    document.getElementById(`yourGuess${i}`).value = '';
+                }
+                
+                this.yourTurn = false;
+                this.updateTurnIndicators();
+                this.disableGuessInputs();
+            }
+
+            calculateFeedback(guess, secret) {
+                const secretArray = secret.split('');
+                const guessArray = guess.split('');
+                const secretUsed = new Array(4).fill(false);
+                const guessUsed = new Array(4).fill(false);
+                
+                let correctPositions = 0;
+                let correctDigits = 0;
+
+                // First pass: count exact matches
+                for (let i = 0; i < 4; i++) {
+                    if (secretArray[i] === guessArray[i]) {
+                        correctPositions++;
+                        secretUsed[i] = true;
+                        guessUsed[i] = true;
+                    }
+                }
+
+                // Second pass: count correct digits in wrong positions
+                for (let i = 0; i < 4; i++) {
+                    if (!guessUsed[i]) {
+                        for (let j = 0; j < 4; j++) {
+                            if (!secretUsed[j] && secretArray[j] === guessArray[i]) {
+                                correctDigits++;
+                                secretUsed[j] = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                correctDigits += correctPositions; // Total includes exact matches
+
+                return { correctDigits, correctPositions };
+            }
+
+            addToYourHistory(guess, feedback) {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                const guessDisplay = guess.split('').join(' ');
+                
+                historyItem.innerHTML = `
+                    <div class="guess-display">${guessDisplay}</div>
+                    <div class="feedback">
+                        <div class="feedback-item feedback-correct">D: ${feedback.correctDigits}</div>
+                        <div class="feedback-item feedback-position">P: ${feedback.correctPositions}</div>
+                    </div>
+                `;
+
+                const historyList = document.getElementById('yourHistoryList');
+                historyList.insertBefore(historyItem, historyList.firstChild);
+            }
+
+            addToOpponentHistory(guess, feedback) {
+                const historyItem = document.createElement('div');
+                historyItem.className = 'history-item';
+                
+                const guessDisplay = guess.split('').join(' ');
+                
+                historyItem.innerHTML = `
+                    <div class="guess-display">${guessDisplay}</div>
+                    <div class="feedback">
+                        <div class="feedback-item feedback-correct">D: ${feedback.correctDigits}</div>
+                        <div class="feedback-item feedback-position">P: ${feedback.correctPositions}</div>
+                    </div>
+                `;
+
+                const historyList = document.getElementById('opponentHistoryList');
+                historyList.insertBefore(historyItem, historyList.firstChild);
+            }
+
+            handleOpponentWin() {
+                this.showGameResult(false); // You lost
+            }
+
+            showGameResult(youWon) {
+                const overlay = document.getElementById('winOverlay');
+                const title = document.getElementById('winTitle');
+                const message = document.getElementById('winMessage');
+                
+                if (youWon) {
+                    title.textContent = '🎉 You Win! 🎉';
+                    message.textContent = 'Congratulations! You guessed the secret number!';
+                    this.createConfetti();
+                } else {
+                    title.textContent = '😔 You Lost';
+                    message.textContent = 'Better luck next time! Your opponent guessed your number.';
+                }
+                
+                // Reveal your secret number
+                document.getElementById('yourSecretDisplay').textContent = this.yourSecret.split('').join(' ');
+                
+                overlay.classList.add('show');
+                this.gamePhase = 'finished';
+            }
+
+            createConfetti() {
+                const colors = ['#667eea', '#764ba2', '#28a745', '#ffc107', '#dc3545'];
+                
+                for (let i = 0; i < 30; i++) {
+                    setTimeout(() => {
+                        const confetti = document.createElement('div');
+                        confetti.className = 'confetti';
+                        confetti.style.left = Math.random() * 100 + 'vw';
+                        confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                        confetti.style.animationDelay = Math.random() * 3 + 's';
+                        document.body.appendChild(confetti);
+                        
+                        setTimeout(() => {
+                            confetti.remove();
+                        }, 3000);
+                    }, i * 50);
+                }
+            }
+
+            updateStatus(connectionText, gameText) {
+                document.getElementById('connectionStatus').textContent = connectionText;
+                document.getElementById('gameStatus').textContent = gameText;
+            }
+
+            startNewRoundLocal() {
+                // Hide win overlay
+                document.getElementById('winOverlay').classList.remove('hidden');
+                
+                // Reset game state
+                this.yourSecret = '';
+                this.yourTurn = false;
+                this.bothSecretsSet = false;
+                this.gamePhase = 'setup';
+                
+                // Clear all inputs and history
+                for (let i = 0; i < 4; i++) {
+                    document.getElementById(`yourSecret${i}`).value = '';
+                    document.getElementById(`yourGuess${i}`).value = '';
+                }
+                
+                document.getElementById('yourHistoryList').innerHTML = '';
+                document.getElementById('opponentHistoryList').innerHTML = '';
+                
+                // Reset displays
+                document.getElementById('yourSecretDisplay').textContent = '* * * *';
+                document.getElementById('opponentSecretDisplay').textContent = '* * * *';
+                
+                // Show setup sections
+                document.getElementById('yourSetup').classList.remove('hidden');
+                document.getElementById('yourGuessing').classList.add('hidden');
+                document.getElementById('opponentSetup').classList.remove('hidden');
+                document.getElementById('opponentGuessing').classList.add('hidden');
+                
+                // Reset toggles
+                document.getElementById('yourRepeatToggle').classList.remove('active');
+                document.getElementById('yourRepeatStatus').textContent = 'No';
+                this.yourAllowRepeats = false;
+                
+                // Update UI
+                this.startSetupPhase();
+                document.getElementById('yourSecret0').focus();
+            }
+
+            leaveRoom() {
+                if (this.connection) {
+                    this.connection.close();
+                    this.connection = null;
+                }
+                
+                if (this.peer) {
+                    this.peer.destroy();
+                    this.peer = null;
+                }
+                
+                // Reset UI
+                document.getElementById('winOverlay').classList.remove('show');
+                document.getElementById('gameSection').classList.add('hidden');
+                document.getElementById('connectionSection').classList.remove('hidden');
+                document.getElementById('roomInput').value = '';
+                document.getElementById('roomDisplay').classList.add('hidden');
+                document.getElementById('createRoomBtn').disabled = false;
+                document.getElementById('errorMessage').classList.add('hidden');
+                
+                // Reset game state
+                this.roomId = null;
+                this.isHost = false;
+                this.connected = false;
+                this.gamePhase = 'waiting';
+                this.yourSecret = '';
+                this.yourTurn = false;
+                this.bothSecretsSet = false;
+                
+                this.updateStatus('Disconnected', 'Click Create or Join to start');
+            }
+        }
+
+        // Global functions for buttons
+        function startNewRound() {
+            game.sendMessage('new_round', {});
+            game.startNewRoundLocal();
+        }
+
+        function leaveRoom() {
+            game.leaveRoom();
+        }
+
+        // Initialize the game
+        const game = new PeerJSNumberGame();
+
+        // Focus room input on load
+        window.addEventListener('load', () => {
+            document.getElementById('roomInput').focus();
+        });
+    </script>
+</body>
+</html>

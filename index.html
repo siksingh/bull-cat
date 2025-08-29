@@ -683,13 +683,8 @@
                     this.roomId = this.generateRoomId();
                     this.isHost = true;
                     
-                    // Initialize PeerJS
-                    this.peer = new Peer(this.roomId, {
-                        host: 'peerjs-server.herokuapp.com',
-                        port: 443,
-                        secure: true,
-                        debug: 2
-                    });
+                    // Initialize PeerJS with the default public server
+                    this.peer = new Peer(this.roomId);
                     
                     this.peer.on('open', (id) => {
                         console.log('Room created with ID:', id);
@@ -733,13 +728,8 @@
                     this.isHost = false;
                     this.updateStatus('Connecting...', 'Joining room: ' + this.roomId);
                     
-                    // Initialize PeerJS with random ID
-                    this.peer = new Peer(null, {
-                        host: 'peerjs-server.herokuapp.com',
-                        port: 443,
-                        secure: true,
-                        debug: 2
-                    });
+                    // Initialize PeerJS with random ID using default public server
+                    this.peer = new Peer();
                     
                     this.peer.on('open', (id) => {
                         console.log('My peer ID:', id);
@@ -1194,7 +1184,7 @@
 
             startNewRoundLocal() {
                 // Hide win overlay
-                document.getElementById('winOverlay').classList.remove('hidden');
+                document.getElementById('winOverlay').classList.remove('show');
                 
                 // Reset game state
                 this.yourSecret = '';
